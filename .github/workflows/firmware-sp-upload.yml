@@ -1,0 +1,86 @@
+name: Firmware Upload to Blob with SP 
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  upload-firmware:
+    runs-on: ubuntu-latest
+
+    env:
+      STORAGE_ACCOUNT: ospswupdatesnonprod
+      RESOURCE_GROUP: rg-ospswupdates-nonprod
+      CONTAINER_GUID: ${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
+
+    steps:
+
+    - name: Azure Login
+      uses: azure/login@v1
+      with:
+        client-id: ${{ secrets.AZURE_CLIENT_ID }}
+        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cifs-utils gpg jq
+
+    - name: Mount Windows Share and Copy File
+      run: |
+        mkdir -p /mnt/share
+        sudo mount -t cifs //4.231.112.114/D:\Shares\test-work /mnt/share -o username=${{ secrets.SHARE_USERNAME }},password=${{ secrets.SHARE_PASSWORD }},vers=3.0
+        cp /mnt/share/php-src-php-8.1.10.tar.gz php-src-php-8.1.10.tar.gz
+        sudo umount /mnt/share
+
+    - name: Untar Firmware Package
+      run: |
+        mkdir firmware
+        tar -xzf php-src-php-8.1.10.tar.gz -C firmware
+
+    - name: Read GPG and JSON Metadata into Memory
+      id: read_metadata
+      run: |
+        METADATA=$(cat firmware/metadata.json)
+        GPG_KEY=$(cat firmware/update.gpg)
+        echo "::add-mask::$METADATA"
+        echo "::add-mask::$GPG_KEY"
+        echo "metadata=$METADATA" >> $GITHUB_OUTPUT
+        echo "gpgkey=$GPG_KEY" >> $GITHUB_OUTPUT
+        rm firmware/metadata.json
+        rm firmware/update.gpg
+
+    - name: Login to Azure with Service Principal
+      run: |
+        az login --service-principal \
+          --username "${{ secrets.AZURE_CLIENT_ID }}" \
+          --password "${{ secrets.AZURE_CLIENT_SECRET }}" \
+          --tenant "${{ secrets.AZURE_TENANT_ID }}"
+
+    - name: Create New Container
+      run: |
+        az storage container create \
+          --name firmware-${{ env.CONTAINER_GUID }} \
+          --account-name ${{ env.STORAGE_ACCOUNT }} \
+          --public-access blob
+
+    - name: Upload Firmware Directory to Container
+      run: |
+        az storage blob upload-batch \
+          --source firmware \
+          --destination firmware-${{ env.CONTAINER_GUID }} \
+          --account-name ${{ env.STORAGE_ACCOUNT }}
+
+    - name: Call Partner API with Metadata
+      run: |
+        curl -X POST https://dlcdn.apache.org/maven/maven-3/3.9.9/binaries/apache-maven-3.9.9-bin.tar.gz/firmware \
+          -H "Content-Type: application/json" \
+          -d '{
+                "container_url": "https://${{ env.STORAGE_ACCOUNT }}.blob.core.windows.net/firmware-${{ env.CONTAINER_GUID }}",
+                "metadata": ${{ steps.read_metadata.outputs.metadata }},
+                "gpg_key": "${{ steps.read_metadata.outputs.gpgkey }}"
+              }'
