@@ -33,7 +33,7 @@ jobs:
 
     - name: Mount Windows Share and Copy File
       run: |
-        sudo mkdir -p /mnt/share
+        sudo mkdir -p /mnt/share &&
         sudo mount -t cifs //4.231.112.114/Shares/test-work /mnt/share -o username=${{ secrets.SHARE_USERNAME }},password=${{ secrets.SHARE_PASSWORD }},vers=3.0
         cp /mnt/share/php-src-php-8.1.10.tar.gz php-src-php-8.1.10.tar.gz
         sudo umount /mnt/share
