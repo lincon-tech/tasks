@@ -31,20 +31,20 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y cifs-utils gpg jq
 
-    - name: Mount Windows Share and Copy File
-      run: |
+    #- name: Mount Windows Share and Copy File
+    #  run: |
         #ping -c 3 4.231.112.114
         #nc -zv 4.231.112.114 445
         #smbclient -L //4.231.112.114
-        sudo mkdir -p /mnt/share 
-        sudo mount -t cifs //4.231.112.114/Shares/test-work /mnt/share -o username=${{ secrets.SHARE_USERNAME }},password=${{ secrets.SHARE_PASSWORD }},vers=3.0
-        cp /mnt/share/php-src-php-8.1.10.tar.gz php-src-php-8.1.10.tar.gz
-        sudo umount /mnt/share
+        #sudo mkdir -p /mnt/share 
+       # sudo mount -t cifs //4.231.112.114/Shares/test-work /mnt/share -o username=${{ secrets.SHARE_USERNAME }},password=${{ secrets.SHARE_PASSWORD }},vers=3.0
+       # cp /mnt/share/php-src-php-8.1.10.tar.gz php-src-php-8.1.10.tar.gz
+       # sudo umount /mnt/share
 
-    - name: Untar Firmware Package
-      run: |
-        mkdir firmware
-        tar -xzf php-src-php-8.1.10.tar.gz -C firmware
+   # - name: Untar Firmware Package
+    #  run: |
+      #  mkdir firmware
+     #   tar -xzf php-src-php-8.1.10.tar.gz -C firmware
 
     - name: Read GPG and JSON Metadata into Memory
       id: read_metadata
